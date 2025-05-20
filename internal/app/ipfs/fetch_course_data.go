@@ -1,8 +1,10 @@
 package ipfs
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/a2tonium/a2tonium-backend/pkg/logger"
 	"io"
 	"net/http"
 	"strings"
@@ -25,8 +27,9 @@ type CourseMetadata struct {
 }
 
 // Fetches and decodes only the required fields from an IPFS JSON
-func FetchQuizAndCompletion(ipfsURI string) (*CourseMetadata, error) {
+func FetchQuizAndCompletion(ctx context.Context, ipfsURI string) (*CourseMetadata, error) {
 	if !strings.HasPrefix(ipfsURI, "ipfs://") {
+		logger.ErrorKV(ctx, "ipfs.FetchQuiz failed:", logger.Err, "invalid IPFS URI")
 		return nil, fmt.Errorf("invalid IPFS URI")
 	}
 	cid := strings.TrimPrefix(ipfsURI, "ipfs://")

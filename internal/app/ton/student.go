@@ -1,13 +1,11 @@
-package edu
+package ton
 
 import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"github.com/a2tonium/a2tonium-backend/pkg/ton/edu"
 	"github.com/xssnick/tonutils-go/address"
 	"github.com/xssnick/tonutils-go/tlb"
 	"github.com/xssnick/tonutils-go/ton"
@@ -212,34 +210,4 @@ func (s *Student) getNewEmits(ctx context.Context, api *ton.APIClient, courseOwn
 	}
 
 	return emits, nil
-}
-
-func certificateFromInit(ctx context.Context, api edu.TonApi, collectionAddress *address.Address, certificateIndex int64) *edu.CertificateClient {
-	state := &tlb.StateInit{
-		Data: getCertificateData(collectionAddress, certificateIndex),
-		Code: getCertificateCode(),
-	}
-
-	stateCell, _ := tlb.ToCell(state)
-
-	addr := address.NewAddress(0, byte(int8(0)), stateCell.Hash())
-	return edu.NewCertificateClient(api, addr)
-}
-
-func getCertificateCode() *cell.Cell {
-	codeCellBytes, _ := hex.DecodeString(_CertificateV1CodeHex)
-	codeCell, err := cell.FromBOC(codeCellBytes)
-	if err != nil {
-		panic(err)
-	}
-
-	return codeCell
-}
-
-func getCertificateData(collectionAddress *address.Address, certificateIndex int64) *cell.Cell {
-	return cell.BeginCell().
-		MustStoreUInt(0, 1).
-		MustStoreAddr(collectionAddress).
-		MustStoreInt(certificateIndex, 257).
-		EndCell()
 }
