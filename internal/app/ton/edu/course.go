@@ -8,6 +8,7 @@ import (
 	"fmt"
 	certificateJsonGenerator "github.com/a2tonium/a2tonium-backend/internal/app/certificate_json_generator"
 	"github.com/a2tonium/a2tonium-backend/internal/app/ipfs"
+	"github.com/a2tonium/a2tonium-backend/pkg/logger"
 	"github.com/a2tonium/a2tonium-backend/pkg/ton/crypto"
 	"github.com/a2tonium/a2tonium-backend/pkg/ton/edu"
 	"github.com/xssnick/tonutils-go/address"
@@ -34,109 +35,136 @@ type Course struct {
 	StudentNum *big.Int
 }
 
-func (c *Course) Process(ctx context.Context, api *ton.APIClient, w *wallet.Wallet) error {
-	for _, s := range c.StudyingStudents {
-		fmt.Println("DDOS")
+func (c *Course) Process(ctx context.Context, api *ton.APIClient, w *wallet.Wallet, privateKey []byte) error {
+	for chetam := 0; chetam < 20; chetam++ {
 		time.Sleep(5 * time.Second)
-		newEmits, err := s.getNewEmits(ctx, api, c.OwnerAddress)
-		if err != nil {
-			return err
-		}
-		fmt.Println("len(newEmits)", len(newEmits))
-		for i := len(newEmits) - 1; i >= 0; i-- {
-			newEmit := newEmits[i]
-			s.lastProcessedHash = newEmit.txHash
-			s.lastProcessedLt = newEmit.txLt
-			quizId, answers, err := LoadQuizFromCell(newEmit.payload)
+		for studentIndex := len(c.StudyingStudents) - 1; studentIndex >= 0; studentIndex-- {
+			s := c.StudyingStudents[studentIndex]
+			newEmits, err := s.getNewEmits(ctx, api, c.OwnerAddress)
 			if err != nil {
 				return err
 			}
-			fmt.Println(quizId, s.QuizId, quizId != s.QuizId)
-			if quizId != s.QuizId {
-				continue
-			}
-
-			if len(c.QuizCorrectAnswers) == quizId {
-				allGrades, err := s.GetAllGrades(ctx, api, c.OwnerAddress, quizId)
+			fmt.Println("len(newEmits)", len(newEmits))
+			for i := len(newEmits) - 1; i >= 0; i-- {
+				newEmit := newEmits[i]
+				s.lastProcessedHash = newEmit.txHash
+				s.lastProcessedLt = newEmit.txLt
+				//newEmit.payload.BeginParse().LoadUInt(32) ==
+				quizId, answers, err := LoadQuizFromCell(newEmit.payload)
 				if err != nil {
 					return err
 				}
-
-				averageGrade, err := averagePercent(allGrades)
-				if err != nil {
-					return err
-				}
-				metadata, err := ipfs.FetchQuizAndCompletion(c.Content.URI)
-
-				certificateJson, err := certificateJsonGenerator.GenerateCertificateJSON(certificateJsonGenerator.Certificate{
-					Name:        fmt.Sprintf("%s Course Certificate", metadata.Name),
-					Description: fmt.Sprintf("Certificate of completion for the %s Course. Awarded to: %s. This NFT certifies successful completion of all modules.", metadata.Name, s.IIN),
-					Image:       fmt.Sprintf("ipfs://%s", metadata.CourseCompletion[0].Certificate),
-					Attributes: []certificateJsonGenerator.Attribute{
-						{TraitType: "Student IIN", Value: s.IIN},
-						{TraitType: "Average Grade", Value: fmt.Sprintf("%.2f%%", averageGrade)},
-					},
-					QuizGrades: allGrades,
-				})
-				if err != nil {
-					return err
-				}
-				cid, err := ipfs.UploadJSONToPinata(certificateJson, fmt.Sprintf("certificate_%d.json", time.Now().UnixNano()))
-				if err != nil {
-					return err
+				fmt.Println(quizId, s.QuizId, quizId != s.QuizId)
+				if quizId != s.QuizId {
+					continue
 				}
 
-				mintData, err := c.courseClient.BuildCertificateIssuePayload(s.CertificateAddress,
-					&edu.ContentOffchain{
-						URI: fmt.Sprintf("ipfs://%s", cid),
+				if len(c.QuizCorrectAnswers) == s.QuizId {
+					c.StudyingStudents = append(c.StudyingStudents[:studentIndex], c.StudyingStudents[studentIndex+1:]...)
+					continue
+				}
+
+				if len(c.QuizCorrectAnswers) == quizId {
+					allGrades, err := s.GetAllGrades(ctx, api, c.OwnerAddress, quizId)
+					if err != nil {
+						continue
+					}
+
+					averageGrade, err := averagePercent(allGrades)
+					if err != nil {
+						return err
+					}
+					metadata, err := ipfs.FetchQuizAndCompletion(c.Content.URI)
+					formattedDate := time.Now().Format("2006-01-02")
+
+					certificateJson, err := certificateJsonGenerator.GenerateCertificateJSON(certificateJsonGenerator.Certificate{
+						Name:        fmt.Sprintf("`%s` Course Certificate", metadata.Name),
+						Description: fmt.Sprintf("Certificate of completion for the `%s` Course. Awarded to: `%s`. This NFT certifies successful completion of all modules.", metadata.Name, s.IIN),
+						Image:       fmt.Sprintf("%s", metadata.CourseCompletion[0].Certificate),
+						Attributes: []certificateJsonGenerator.Attribute{
+							{TraitType: "Student IIN", Value: s.IIN},
+							{TraitType: "Average Grade", Value: fmt.Sprintf("%.2f%%", averageGrade)},
+							{TraitType: "Completion Date", Value: formattedDate},
+						},
+						QuizGrades: allGrades,
 					})
-				if err != nil {
-					panic(err)
+					if err != nil {
+						return err
+					}
+					cid, err := ipfs.UploadJSONToPinata(certificateJson, fmt.Sprintf("certificate_%d.json", time.Now().UnixNano()))
+					if err != nil {
+						fmt.Println(err)
+						return err
+					}
+
+					mintData, err := c.courseClient.BuildCertificateIssuePayload(s.CertificateAddress,
+						&edu.ContentOffchain{
+							URI: fmt.Sprintf("ipfs://%s", cid),
+						})
+					if err != nil {
+						panic(err)
+					}
+
+					mint := wallet.SimpleMessage(c.courseClient.GetCourseAddress(), tlb.MustFromTON("0.02"), mintData)
+
+					rateReview := strings.Split(answers, " | ")
+					review := fmt.Sprintf("Rating: %s Review: %s", rateReview[0], rateReview[1])
+					transfer, err := w.BuildTransfer(s.CertificateAddress, tlb.MustFromTON("0"), false, review)
+					if err != nil {
+						log.Fatalln("Transfer err:", err.Error())
+						return err
+					}
+
+					fmt.Println("Minting NFT && Review...")
+					for {
+						err = w.SendMany(ctx, []*wallet.Message{mint, transfer}, false)
+						if err == nil {
+							break
+						}
+						fmt.Println(err)
+					}
+
+					c.StudyingStudents = append(c.StudyingStudents[:studentIndex], c.StudyingStudents[studentIndex+1:]...)
+					continue
 				}
 
-				fmt.Println("Minting NFT...")
-				mint := wallet.SimpleMessage(c.courseClient.GetCourseAddress(), tlb.MustFromTON("0.02"), mintData)
-
-				tx, block, err := w.SendWaitTransaction(context.Background(), mint)
+				encrypted := strings.Split(answers, " | ")
+				answers, err = crypto.DecryptX25519AESCBCMessage(encrypted[0], encrypted[1], privateKey)
 				if err != nil {
-					log.Fatalln("SendWaitTransaction err:", err.Error())
+					fmt.Printf("%q\n", encrypted)
+					fmt.Println(answers, err)
+					continue
+				}
+
+				grade := compareStrings(answers, c.QuizCorrectAnswers[quizId])
+				gradingString := fmt.Sprintf("%v | %s | %v | %s", quizId+1, grade, newEmit.txLt, base64.StdEncoding.EncodeToString(newEmit.txHash))
+				fmt.Println(fmt.Sprintf("GradingString: %q", gradingString))
+				transfer, err := w.BuildTransfer(s.CertificateAddress, tlb.MustFromTON("0"), false, gradingString)
+				if err != nil {
+					log.Fatalln("Transfer err:", err.Error())
 					return err
+				}
+
+				ctxWithTimeout, cancel := context.WithTimeout(ctx, time.Minute*2)
+				tx, block, err := w.SendWaitTransaction(ctxWithTimeout, transfer)
+				cancel()
+				if err != nil {
+					logger.ErrorKV(ctx, "SendWaitTransaction err:", logger.Err, err.Error())
+					select {
+					case <-ctxWithTimeout.Done():
+						return fmt.Errorf("transaction timed out after %s: %w", "2min", err)
+					default:
+						return fmt.Errorf("transaction failed: %w", err)
+					}
+				} else {
+					s.QuizId += 1
 				}
 
 				fmt.Println("tx:", tx)
 				fmt.Println("block:", block)
-
-				students, err := c.GetCurrentlyStudyingStudents(ctx, api)
-				if err != nil {
-					return err
-				}
-				c.StudyingStudents = students
-
-				continue
 			}
-
-			grade := compareStrings(answers, c.QuizCorrectAnswers[quizId])
-			gradingString := fmt.Sprintf("%v | %s | %v | %s", quizId+1, grade, newEmit.txLt, base64.StdEncoding.EncodeToString(newEmit.txHash))
-			fmt.Println(fmt.Sprintf("GradingString: %q", gradingString))
-			transfer, err := w.BuildTransfer(s.CertificateAddress, tlb.MustFromTON("0.0001"), false, gradingString)
-			if err != nil {
-				log.Fatalln("Transfer err:", err.Error())
-				return err
-			}
-
-			tx, block, err := w.SendWaitTransaction(ctx, transfer)
-			if err != nil {
-				log.Fatalln("SendWaitTransaction err:", err.Error())
-				return err
-			} else {
-				s.QuizId += 1
-			}
-
-			fmt.Println("tx:", tx)
-			fmt.Println("block:", block)
 		}
 	}
-
 	return nil
 }
 
@@ -196,6 +224,7 @@ func (c *Course) AssignQuizAnswersFromContent(ctx context.Context, recipientPriv
 	if err != nil {
 		return err
 	}
+	fmt.Println("CORRECTANSWERSTRING", correctAnswersString)
 
 	correctAnswers := strings.Split(correctAnswersString, " ")
 	log.Println("CORRECT ANSWERS:", correctAnswers)

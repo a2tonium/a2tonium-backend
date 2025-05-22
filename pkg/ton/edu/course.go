@@ -171,7 +171,9 @@ func (c *CourseClient) GetCourseDataAtBlock(ctx context.Context, b *ton.BlockIDE
 }
 
 func (c *CourseClient) BuildCertificateIssuePayload(certificateAddress *address.Address, certificateContent *ContentOffchain) (_ *cell.Cell, err error) {
-	con, err := toCertificateContent(certificateContent)
+	con, err := certificateContent.ContentCell()
+	fmt.Printf("URI:%q\n", certificateContent.URI)
+	fmt.Printf("CON:%q\n", con)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert certificate content to cell: %w", err)
 	}

@@ -52,8 +52,9 @@ type Response struct {
 }
 
 type Data struct {
-	Count int   `json:"count"`
-	Rows  []Row `json:"rows"`
+	Count int    `json:"count"`
+	Cid   string `json:"cid"`
+	Rows  []Row  `json:"rows"`
 }
 
 type Row struct {
@@ -67,7 +68,7 @@ type Row struct {
 func takePinataGateway() (string, error) {
 	url := "https://api.pinata.cloud/v3/ipfs/gateways"
 	req, _ := http.NewRequest("GET", url, nil)
-	req.Header.Add("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiI4OGM1NmU4YS03OGQwLTRkYTAtYTEwMy1kZjliMmYxNjU0YTUiLCJlbWFpbCI6ImVwaWNnYW1lc3R3b0BnbWFpbC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwicGluX3BvbGljeSI6eyJyZWdpb25zIjpbeyJkZXNpcmVkUmVwbGljYXRpb25Db3VudCI6MSwiaWQiOiJGUkExIn0seyJkZXNpcmVkUmVwbGljYXRpb25Db3VudCI6MSwiaWQiOiJOWUMxIn1dLCJ2ZXJzaW9uIjoxfSwibWZhX2VuYWJsZWQiOmZhbHNlLCJzdGF0dXMiOiJBQ1RJVkUifSwiYXV0aGVudGljYXRpb25UeXBlIjoic2NvcGVkS2V5Iiwic2NvcGVkS2V5S2V5IjoiZTEzNWUyOGIyZTA2N2RmZjQ5ODYiLCJzY29wZWRLZXlTZWNyZXQiOiI5MjZhNTc2MGUwNWEzZGFjZDZmY2FjMmZhNjk4ZTg2YzdkM2I5MTNkZGExYzdhNGNhYjYzYTIxYzk1NmE2MjE1IiwiZXhwIjoxNzc4OTYzNzgwfQ.gonxfkbUR6YqA-p93o7AKul8O9enyHf8m0h5qXq9Hsg")
+	req.Header.Add("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiIwYjAwZTVhMC0yYTE1LTQyOWEtYWZmMi04Nzg0MDdjMzBiMDciLCJlbWFpbCI6Imt1YW5keWtvZmZpY2FsQGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJwaW5fcG9saWN5Ijp7InJlZ2lvbnMiOlt7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6IkZSQTEifSx7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6Ik5ZQzEifV0sInZlcnNpb24iOjF9LCJtZmFfZW5hYmxlZCI6ZmFsc2UsInN0YXR1cyI6IkFDVElWRSJ9LCJhdXRoZW50aWNhdGlvblR5cGUiOiJzY29wZWRLZXkiLCJzY29wZWRLZXlLZXkiOiJjYmFjMGUwZGY4MTJlNzA3N2ExZiIsInNjb3BlZEtleVNlY3JldCI6ImQ2NjAxOGZhYmFmMzVhYzBkZDM4ZWM2NWU3YjZjNzhhOGIzYjYzZDE2YmJhNjUyNmZiZGRkMWJhZjY4Y2Y0YTgiLCJleHAiOjE3NzgzMzg0MjR9.5w8Xms7u2Aflm_CAYLk5TquvpzhKB116hMmBOkzBXMU")
 	resp, err := http.DefaultClient.Do(req)
 	defer resp.Body.Close()
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
@@ -113,7 +114,7 @@ func FetchQuizAndCompletion(ipfsURI string) (*NFTMetadata, error) {
 	url := fmt.Sprintf("https://%s.mypinata.cloud/ipfs/%s", domain, cid)
 
 	req, _ := http.NewRequest("GET", url, nil)
-	req.Header.Add("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiI4OGM1NmU4YS03OGQwLTRkYTAtYTEwMy1kZjliMmYxNjU0YTUiLCJlbWFpbCI6ImVwaWNnYW1lc3R3b0BnbWFpbC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwicGluX3BvbGljeSI6eyJyZWdpb25zIjpbeyJkZXNpcmVkUmVwbGljYXRpb25Db3VudCI6MSwiaWQiOiJGUkExIn0seyJkZXNpcmVkUmVwbGljYXRpb25Db3VudCI6MSwiaWQiOiJOWUMxIn1dLCJ2ZXJzaW9uIjoxfSwibWZhX2VuYWJsZWQiOmZhbHNlLCJzdGF0dXMiOiJBQ1RJVkUifSwiYXV0aGVudGljYXRpb25UeXBlIjoic2NvcGVkS2V5Iiwic2NvcGVkS2V5S2V5IjoiZTEzNWUyOGIyZTA2N2RmZjQ5ODYiLCJzY29wZWRLZXlTZWNyZXQiOiI5MjZhNTc2MGUwNWEzZGFjZDZmY2FjMmZhNjk4ZTg2YzdkM2I5MTNkZGExYzdhNGNhYjYzYTIxYzk1NmE2MjE1IiwiZXhwIjoxNzc4OTYzNzgwfQ.gonxfkbUR6YqA-p93o7AKul8O9enyHf8m0h5qXq9Hsg")
+	req.Header.Add("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiIwYjAwZTVhMC0yYTE1LTQyOWEtYWZmMi04Nzg0MDdjMzBiMDciLCJlbWFpbCI6Imt1YW5keWtvZmZpY2FsQGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJwaW5fcG9saWN5Ijp7InJlZ2lvbnMiOlt7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6IkZSQTEifSx7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6Ik5ZQzEifV0sInZlcnNpb24iOjF9LCJtZmFfZW5hYmxlZCI6ZmFsc2UsInN0YXR1cyI6IkFDVElWRSJ9LCJhdXRoZW50aWNhdGlvblR5cGUiOiJzY29wZWRLZXkiLCJzY29wZWRLZXlLZXkiOiJjYmFjMGUwZGY4MTJlNzA3N2ExZiIsInNjb3BlZEtleVNlY3JldCI6ImQ2NjAxOGZhYmFmMzVhYzBkZDM4ZWM2NWU3YjZjNzhhOGIzYjYzZDE2YmJhNjUyNmZiZGRkMWJhZjY4Y2Y0YTgiLCJleHAiOjE3NzgzMzg0MjR9.5w8Xms7u2Aflm_CAYLk5TquvpzhKB116hMmBOkzBXMU")
 
 	resp, err := http.DefaultClient.Do(req)
 	defer resp.Body.Close()
@@ -136,10 +137,6 @@ func FetchQuizAndCompletion(ipfsURI string) (*NFTMetadata, error) {
 }
 
 // PinataUploadResponse models the relevant part of Pinata's response JSON
-type PinataUploadResponse struct {
-	Cid string `json:"cid"` // CID of uploaded file
-	// other fields omitted
-}
 
 // UploadJSONToPinata uploads the JSON string as a file to Pinata and returns the IPFS CID.
 func UploadJSONToPinata(jsonData, filename string) (string, error) {
@@ -171,7 +168,7 @@ func UploadJSONToPinata(jsonData, filename string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("new request error: %w", err)
 	}
-	bearerToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiI4OGM1NmU4YS03OGQwLTRkYTAtYTEwMy1kZjliMmYxNjU0YTUiLCJlbWFpbCI6ImVwaWNnYW1lc3R3b0BnbWFpbC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwicGluX3BvbGljeSI6eyJyZWdpb25zIjpbeyJkZXNpcmVkUmVwbGljYXRpb25Db3VudCI6MSwiaWQiOiJGUkExIn0seyJkZXNpcmVkUmVwbGljYXRpb25Db3VudCI6MSwiaWQiOiJOWUMxIn1dLCJ2ZXJzaW9uIjoxfSwibWZhX2VuYWJsZWQiOmZhbHNlLCJzdGF0dXMiOiJBQ1RJVkUifSwiYXV0aGVudGljYXRpb25UeXBlIjoic2NvcGVkS2V5Iiwic2NvcGVkS2V5S2V5IjoiZTEzNWUyOGIyZTA2N2RmZjQ5ODYiLCJzY29wZWRLZXlTZWNyZXQiOiI5MjZhNTc2MGUwNWEzZGFjZDZmY2FjMmZhNjk4ZTg2YzdkM2I5MTNkZGExYzdhNGNhYjYzYTIxYzk1NmE2MjE1IiwiZXhwIjoxNzc4OTYzNzgwfQ.gonxfkbUR6YqA-p93o7AKul8O9enyHf8m0h5qXq9Hsg"
+	bearerToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiIwYjAwZTVhMC0yYTE1LTQyOWEtYWZmMi04Nzg0MDdjMzBiMDciLCJlbWFpbCI6Imt1YW5keWtvZmZpY2FsQGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJwaW5fcG9saWN5Ijp7InJlZ2lvbnMiOlt7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6IkZSQTEifSx7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6Ik5ZQzEifV0sInZlcnNpb24iOjF9LCJtZmFfZW5hYmxlZCI6ZmFsc2UsInN0YXR1cyI6IkFDVElWRSJ9LCJhdXRoZW50aWNhdGlvblR5cGUiOiJzY29wZWRLZXkiLCJzY29wZWRLZXlLZXkiOiJjYmFjMGUwZGY4MTJlNzA3N2ExZiIsInNjb3BlZEtleVNlY3JldCI6ImQ2NjAxOGZhYmFmMzVhYzBkZDM4ZWM2NWU3YjZjNzhhOGIzYjYzZDE2YmJhNjUyNmZiZGRkMWJhZjY4Y2Y0YTgiLCJleHAiOjE3NzgzMzg0MjR9.5w8Xms7u2Aflm_CAYLk5TquvpzhKB116hMmBOkzBXMU"
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.Header.Set("Authorization", "Bearer "+bearerToken)
 
@@ -192,11 +189,11 @@ func UploadJSONToPinata(jsonData, filename string) (string, error) {
 	}
 
 	// Parse response JSON to get CID
-	var pinataResp PinataUploadResponse
+	var pinataResp Response
 	err = json.Unmarshal(respBody, &pinataResp)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse response JSON: %w", err)
 	}
 
-	return pinataResp.Cid, nil
+	return pinataResp.Data.Cid, nil
 }

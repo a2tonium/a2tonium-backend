@@ -142,6 +142,11 @@ func (s *Student) getNewEmits(ctx context.Context, api *ton.APIClient, courseOwn
 
 		for i := len(txs) - 1; i >= 0; i-- {
 			tx := txs[i]
+			fmt.Println()
+			fmt.Println("TX.NOW:", tx.Now)
+			fmt.Println("ORIG STATUS:", tx.OrigStatus, "END STATUS:", tx.EndStatus)
+			fmt.Println()
+			fmt.Println()
 			fmt.Println("NADO VSE", fmt.Sprintf("tx.LT: %v", tx.LT), fmt.Sprintf("lastProcessedLt: %v", lastProcessedLt),
 				fmt.Sprintf("tx.Hash: %x", tx.Hash), fmt.Sprintf("lastProcessedHash: %x", lastProcessedHash))
 			fmt.Println(tx.LT == lastProcessedLt && bytes.Compare(tx.Hash, lastProcessedHash) == 0)
@@ -174,6 +179,9 @@ func (s *Student) getNewEmits(ctx context.Context, api *ton.APIClient, courseOwn
 					slice := tx.IO.In.Msg.Payload().BeginParse()
 					slice.LoadUInt(32)
 					payload := slice.MustLoadStringSnake()
+					if strings.HasPrefix(payload, "Rating") {
+						s.QuizId++
+					}
 					payloadSlice := strings.Split(payload, " | ")
 					if len(payloadSlice) != 4 {
 						continue

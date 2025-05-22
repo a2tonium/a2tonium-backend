@@ -21,7 +21,9 @@ type TonService struct {
 func NewTonService(api *ton.APIClient, mnemonic string) *TonService {
 	log.Println("Creating Wallet ...")
 	seed := strings.Split(mnemonic, " ")
-	w, err := wallet.FromSeed(api, seed, wallet.V4R2)
+	w, err := wallet.FromSeed(api, seed, wallet.ConfigV5R1Final{
+		NetworkGlobalID: wallet.TestnetGlobalID,
+	})
 	log.Println(w.WalletAddress())
 	if err != nil {
 		panic(err)
@@ -40,20 +42,20 @@ func NewTonService(api *ton.APIClient, mnemonic string) *TonService {
 }
 
 func (t *TonService) Run(ctx context.Context) error {
-	for {
-		for _, course := range t.Courses {
-			err := course.Process(ctx, t.api, t.wallet)
-			if err != nil {
-				return err
-			}
+	for i, course := range t.Courses {
+		fmt.Println("Processing Course", i)
+		err := course.Process(ctx, t.api, t.wallet, t.keyPair.PrivateKey)
+		if err != nil {
+			return err
 		}
 	}
-
+	return nil
 }
 
 func (t *TonService) Init(ctx context.Context) error {
 	var courses []*internalEdu.Course
 	courses, err := internalEdu.GetAllCreatedCourses(ctx, t.api, t.wallet.WalletAddress())
+	fmt.Println(t.wallet.WalletAddress(), courses)
 	if err != nil {
 		return err
 	}
