@@ -36,7 +36,7 @@ type Course struct {
 }
 
 func (c *Course) Process(ctx context.Context, api *ton.APIClient, w *wallet.Wallet, privateKey []byte) error {
-	for chetam := 0; chetam < 20; chetam++ {
+	for iteration := 0; iteration < 20; iteration++ {
 		time.Sleep(5 * time.Second)
 		for studentIndex := len(c.StudyingStudents) - 1; studentIndex >= 0; studentIndex-- {
 			s := c.StudyingStudents[studentIndex]

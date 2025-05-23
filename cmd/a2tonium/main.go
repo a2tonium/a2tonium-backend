@@ -2,8 +2,14 @@ package main
 
 import (
 	"context"
+	"encoding/base64"
+	"flag"
 	"fmt"
 	internalTon "github.com/a2tonium/a2tonium-backend/internal/app/ton"
+	"github.com/a2tonium/a2tonium-backend/pkg/config"
+
+	//"github.com/a2tonium/a2tonium-backend/pkg/config"
+	"github.com/a2tonium/a2tonium-backend/pkg/ton/crypto"
 	"github.com/xssnick/tonutils-go/liteclient"
 	"github.com/xssnick/tonutils-go/ton"
 	"log"
@@ -12,8 +18,25 @@ import (
 
 func main() {
 	var (
-		ctx, _ = context.WithCancel(context.Background())
+		ctx, _   = context.WithCancel(context.Background())
+		mnemonic = "artwork vintage physical silk combine faith sketch crisp lion wrestle call credit shell chase donor glare sudden resource edge behave diamond sweet lens fall"
 	)
+	generatePublicKey := flag.Bool("generatePublicKey", false, "Set this flag to generate public key")
+	configFlag := flag.String("config", "test", "configuration file suffix")
+	flag.Parse()
+	config.LoadConfig(*configFlag)
+
+	if *generatePublicKey {
+		keypair, err := crypto.MnemonicToX25519KeyPair(mnemonic)
+		if err != nil {
+			fmt.Println("public key generation failed:", err)
+			return
+		}
+		fmt.Println("Your public key:", base64.StdEncoding.EncodeToString(keypair.PublicKey))
+
+		return
+	}
+
 	client := liteclient.NewConnectionPool()
 
 	configUrl := "https://ton-blockchain.github.io/testnet-global.config.json"
@@ -23,7 +46,6 @@ func main() {
 	}
 	api := ton.NewAPIClient(client)
 
-	mnemonic := "artwork vintage physical silk combine faith sketch crisp lion wrestle call credit shell chase donor glare sudden resource edge behave diamond sweet lens fall"
 	log.Println("Creating TonService ...")
 	tonService := internalTon.NewTonService(api, mnemonic)
 	for {
