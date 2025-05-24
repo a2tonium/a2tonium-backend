@@ -59,11 +59,6 @@ func (c *Course) Process(ctx context.Context, api *ton.APIClient, w *wallet.Wall
 					continue
 				}
 
-				if len(c.QuizCorrectAnswers) == s.QuizId {
-					c.StudyingStudents = append(c.StudyingStudents[:studentIndex], c.StudyingStudents[studentIndex+1:]...)
-					continue
-				}
-
 				if len(c.QuizCorrectAnswers) == quizId {
 					allGrades, err := s.GetAllGrades(ctx, api, c.OwnerAddress, quizId)
 					if err != nil {

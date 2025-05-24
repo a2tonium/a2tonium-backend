@@ -56,7 +56,7 @@ func main() {
 		//tonService.Show()
 		fmt.Println("Process Poshel :) ...")
 
-		for i := 0; i < 60; i++ {
+		for i := 0; i < 5; i++ {
 			fmt.Println(i)
 			time.Sleep(5 * time.Second)
 			err = tonService.Run(ctx)

@@ -12,6 +12,8 @@ import (
 	"strings"
 )
 
+var bearerToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiIwYjAwZTVhMC0yYTE1LTQyOWEtYWZmMi04Nzg0MDdjMzBiMDciLCJlbWFpbCI6Imt1YW5keWtvZmZpY2FsQGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJwaW5fcG9saWN5Ijp7InJlZ2lvbnMiOlt7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6IkZSQTEifSx7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6Ik5ZQzEifV0sInZlcnNpb24iOjF9LCJtZmFfZW5hYmxlZCI6ZmFsc2UsInN0YXR1cyI6IkFDVElWRSJ9LCJhdXRoZW50aWNhdGlvblR5cGUiOiJzY29wZWRLZXkiLCJzY29wZWRLZXlLZXkiOiJjYmFjMGUwZGY4MTJlNzA3N2ExZiIsInNjb3BlZEtleVNlY3JldCI6ImQ2NjAxOGZhYmFmMzVhYzBkZDM4ZWM2NWU3YjZjNzhhOGIzYjYzZDE2YmJhNjUyNmZiZGRkMWJhZjY4Y2Y0YTgiLCJleHAiOjE3NzgzMzg0MjR9.5w8Xms7u2Aflm_CAYLk5TquvpzhKB116hMmBOkzBXMU"
+
 // Structs for the required fields
 type QuizAnswers struct {
 	EncryptedAnswers string `json:"encrypted_answers"`
@@ -68,7 +70,7 @@ type Row struct {
 func takePinataGateway() (string, error) {
 	url := "https://api.pinata.cloud/v3/ipfs/gateways"
 	req, _ := http.NewRequest("GET", url, nil)
-	req.Header.Add("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiIwYjAwZTVhMC0yYTE1LTQyOWEtYWZmMi04Nzg0MDdjMzBiMDciLCJlbWFpbCI6Imt1YW5keWtvZmZpY2FsQGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJwaW5fcG9saWN5Ijp7InJlZ2lvbnMiOlt7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6IkZSQTEifSx7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6Ik5ZQzEifV0sInZlcnNpb24iOjF9LCJtZmFfZW5hYmxlZCI6ZmFsc2UsInN0YXR1cyI6IkFDVElWRSJ9LCJhdXRoZW50aWNhdGlvblR5cGUiOiJzY29wZWRLZXkiLCJzY29wZWRLZXlLZXkiOiJjYmFjMGUwZGY4MTJlNzA3N2ExZiIsInNjb3BlZEtleVNlY3JldCI6ImQ2NjAxOGZhYmFmMzVhYzBkZDM4ZWM2NWU3YjZjNzhhOGIzYjYzZDE2YmJhNjUyNmZiZGRkMWJhZjY4Y2Y0YTgiLCJleHAiOjE3NzgzMzg0MjR9.5w8Xms7u2Aflm_CAYLk5TquvpzhKB116hMmBOkzBXMU")
+	req.Header.Add("Authorization", "Bearer "+bearerToken)
 	resp, err := http.DefaultClient.Do(req)
 	defer resp.Body.Close()
 	bodyBytes, err := ioutil.ReadAll(resp.Body)
@@ -114,7 +116,7 @@ func FetchQuizAndCompletion(ipfsURI string) (*NFTMetadata, error) {
 	url := fmt.Sprintf("https://%s.mypinata.cloud/ipfs/%s", domain, cid)
 
 	req, _ := http.NewRequest("GET", url, nil)
-	req.Header.Add("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiIwYjAwZTVhMC0yYTE1LTQyOWEtYWZmMi04Nzg0MDdjMzBiMDciLCJlbWFpbCI6Imt1YW5keWtvZmZpY2FsQGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJwaW5fcG9saWN5Ijp7InJlZ2lvbnMiOlt7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6IkZSQTEifSx7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6Ik5ZQzEifV0sInZlcnNpb24iOjF9LCJtZmFfZW5hYmxlZCI6ZmFsc2UsInN0YXR1cyI6IkFDVElWRSJ9LCJhdXRoZW50aWNhdGlvblR5cGUiOiJzY29wZWRLZXkiLCJzY29wZWRLZXlLZXkiOiJjYmFjMGUwZGY4MTJlNzA3N2ExZiIsInNjb3BlZEtleVNlY3JldCI6ImQ2NjAxOGZhYmFmMzVhYzBkZDM4ZWM2NWU3YjZjNzhhOGIzYjYzZDE2YmJhNjUyNmZiZGRkMWJhZjY4Y2Y0YTgiLCJleHAiOjE3NzgzMzg0MjR9.5w8Xms7u2Aflm_CAYLk5TquvpzhKB116hMmBOkzBXMU")
+	req.Header.Add("Authorization", "Bearer "+bearerToken)
 
 	resp, err := http.DefaultClient.Do(req)
 	defer resp.Body.Close()
@@ -168,7 +170,6 @@ func UploadJSONToPinata(jsonData, filename string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("new request error: %w", err)
 	}
-	bearerToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiIwYjAwZTVhMC0yYTE1LTQyOWEtYWZmMi04Nzg0MDdjMzBiMDciLCJlbWFpbCI6Imt1YW5keWtvZmZpY2FsQGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJwaW5fcG9saWN5Ijp7InJlZ2lvbnMiOlt7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6IkZSQTEifSx7ImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxLCJpZCI6Ik5ZQzEifV0sInZlcnNpb24iOjF9LCJtZmFfZW5hYmxlZCI6ZmFsc2UsInN0YXR1cyI6IkFDVElWRSJ9LCJhdXRoZW50aWNhdGlvblR5cGUiOiJzY29wZWRLZXkiLCJzY29wZWRLZXlLZXkiOiJjYmFjMGUwZGY4MTJlNzA3N2ExZiIsInNjb3BlZEtleVNlY3JldCI6ImQ2NjAxOGZhYmFmMzVhYzBkZDM4ZWM2NWU3YjZjNzhhOGIzYjYzZDE2YmJhNjUyNmZiZGRkMWJhZjY4Y2Y0YTgiLCJleHAiOjE3NzgzMzg0MjR9.5w8Xms7u2Aflm_CAYLk5TquvpzhKB116hMmBOkzBXMU"
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	req.Header.Set("Authorization", "Bearer "+bearerToken)
 
