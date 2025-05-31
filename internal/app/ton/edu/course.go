@@ -92,12 +92,15 @@ func (c *Course) Process(ctx context.Context, api *ton.APIClient, w *wallet.Wall
 						return err
 					}
 
-					mintData, err := c.courseClient.BuildCertificateIssuePayload(s.CertificateAddress,
-						&edu.ContentOffchain{
-							URI: fmt.Sprintf("ipfs://%s", cid),
-						})
-					if err != nil {
-						panic(err)
+					var mintData *cell.Cell
+					for {
+						mintData, err = c.courseClient.BuildCertificateIssuePayload(s.CertificateAddress,
+							&edu.ContentOffchain{
+								URI: fmt.Sprintf("ipfs://%s", cid),
+							})
+						if err == nil {
+							break
+						}
 					}
 
 					mint := wallet.SimpleMessage(c.courseClient.GetCourseAddress(), tlb.MustFromTON("0.02"), mintData)
