@@ -1,1 +1,8 @@
+*.test
+*.exe
+
 .env
+.idea
+.vscode
+
+config/config_local.yml

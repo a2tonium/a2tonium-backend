@@ -33,6 +33,7 @@ const jsonTemplate = `{
     }
     {{- end }}
   ],
+  "content_url": "",
   "quizGrades": [
     {{- range $i, $grade := .QuizGrades }}
       {{- if $i}}, {{end}}"{{$grade}}"
