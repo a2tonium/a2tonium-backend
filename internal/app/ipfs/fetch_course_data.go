@@ -27,7 +27,7 @@ type CourseMetadata struct {
 }
 
 // Fetches and decodes only the required fields from an IPFS JSON
-func FetchQuizAndCompletion(ctx context.Context, ipfsURI string) (*CourseMetadata, error) {
+func FetchCourseMetadata(ctx context.Context, ipfsURI string) (*CourseMetadata, error) {
 	if !strings.HasPrefix(ipfsURI, "ipfs://") {
 		logger.ErrorKV(ctx, "ipfs.FetchQuiz failed:", logger.Err, "invalid IPFS URI")
 		return nil, fmt.Errorf("invalid IPFS URI")

@@ -40,7 +40,7 @@ func (a *A2Tonium) Run() {
 	// Just call ProcessStudent()
 	// If lastTx changed goTillLastTxn and from it parse is any emit exist and after update lastProcessedTxn
 
-	var studentsGmail []string
+		var studentsGmail []string
 	for _, c := range courses {
 		for i := range c.StudentNum {
 			student, isComplete, err :=	a.TonService.InitStudent()

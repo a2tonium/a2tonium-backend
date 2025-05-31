@@ -3,18 +3,22 @@ package ton
 import (
 	"context"
 	"fmt"
-	internalEdu "github.com/a2tonium/a2tonium-backend/internal/app/ton/edu"
 	"github.com/a2tonium/a2tonium-backend/pkg/ton/crypto"
+	"github.com/xssnick/tonutils-go/address"
 	"github.com/xssnick/tonutils-go/ton"
 	"github.com/xssnick/tonutils-go/ton/wallet"
 	"log"
 	"strings"
 )
 
+type TonServiceInterface interface {
+	GetAllCourses(ownerAddr *address.Address) []*Course
+}
+
 type TonService struct {
 	api     *ton.APIClient
 	keyPair crypto.KeyPair
-	Courses []*internalEdu.Course
+	Courses []*Course
 	wallet  *wallet.Wallet
 }
 
@@ -52,8 +56,8 @@ func (t *TonService) Run(ctx context.Context) error {
 }
 
 func (t *TonService) Init(ctx context.Context) error {
-	var courses []*internalEdu.Course
-	courses, err := internalEdu.GetAllCreatedCourses(ctx, t.api, t.wallet.WalletAddress())
+	var courses []*Course
+	courses, err := GetAllCreatedCourses(ctx, t.api, t.wallet.WalletAddress())
 	if err != nil {
 		return err
 	}
@@ -72,7 +76,6 @@ func (t *TonService) Init(ctx context.Context) error {
 		}
 		course.StudyingStudents = students
 		log.Println(course.StudentNum, course.Content, course)
-
 	}
 
 	return nil

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	certificateJsonGenerator "github.com/a2tonium/a2tonium-backend/internal/app/certificate_json_generator"
 	"github.com/a2tonium/a2tonium-backend/internal/app/ipfs"
 	"github.com/a2tonium/a2tonium-backend/pkg/ton/crypto"
 	"github.com/a2tonium/a2tonium-backend/pkg/ton/edu"
@@ -33,22 +34,22 @@ type Course struct {
 
 func (c *Course) Process(ctx context.Context, api *ton.APIClient, w *wallet.Wallet) error {
 	for _, s := range c.StudyingStudents {
-		fmt.Println("DDOS")
+
 		time.Sleep(5 * time.Second)
 		newEmits, err := s.getNewEmits(ctx, api, c.OwnerAddress)
 		if err != nil {
 			return err
 		}
-		fmt.Println("len(newEmits)", len(newEmits))
+
 		for i := len(newEmits) - 1; i >= 0; i-- {
 			newEmit := newEmits[i]
 			s.lastProcessedHash = newEmit.txHash
 			s.lastProcessedLt = newEmit.txLt
-			quizId, answers, err := ton_edu.LoadQuizFromCell(newEmit.payload)
+			quizId, answers, err := LoadQuizFromCell(newEmit.payload)
 			if err != nil {
 				return err
 			}
-			fmt.Println(quizId, s.QuizId, quizId != s.QuizId)
+
 			if quizId != s.QuizId {
 				continue
 			}
@@ -63,7 +64,7 @@ func (c *Course) Process(ctx context.Context, api *ton.APIClient, w *wallet.Wall
 				if err != nil {
 					return err
 				}
-				metadata, err := ipfs.FetchQuizAndCompletion(ctx, c.Content.URI)
+				metadata, err := ipfs.FetchCourseMetadata(ctx, c.Content.URI)
 
 				certificateJson, err := certificateJsonGenerator.GenerateCertificateJSON(certificateJsonGenerator.Certificate{
 					Name:        fmt.Sprintf("%s Course Certificate", metadata.Name),
@@ -103,6 +104,7 @@ func (c *Course) Process(ctx context.Context, api *ton.APIClient, w *wallet.Wall
 				fmt.Println("tx:", tx)
 				fmt.Println("block:", block)
 
+				// TODO: make the same like in main branch
 				students, err := c.GetCurrentlyStudyingStudents(ctx, api)
 				if err != nil {
 					return err
@@ -137,53 +139,8 @@ func (c *Course) Process(ctx context.Context, api *ton.APIClient, w *wallet.Wall
 	return nil
 }
 
-func averagePercent(percentStrings []string) (float64, error) {
-	var sum float64
-	for _, p := range percentStrings {
-		// Remove trailing '%' sign
-		trimmed := strings.TrimSuffix(p, "%")
-		// Parse to float64
-		val, err := strconv.ParseFloat(trimmed, 64)
-		if err != nil {
-			return 0, fmt.Errorf("failed to parse %q: %w", p, err)
-		}
-		sum += val
-	}
-	if len(percentStrings) == 0 {
-		return 0, nil // avoid division by zero
-	}
-	return sum / float64(len(percentStrings)), nil
-}
-func compareStrings(s1, s2 string) string {
-	// Determine the minimum length to avoid index out of range
-	minLen := len(s1)
-	if len(s2) < minLen {
-		minLen = len(s2)
-	}
-
-	// Count matching characters at the same positions
-	matchCount := 0
-	for i := 0; i < minLen; i++ {
-		if s1[i] == s2[i] {
-			matchCount++
-		}
-	}
-
-	// Use the length of the longer string as the denominator
-	maxLen := len(s1)
-	if len(s2) > maxLen {
-		maxLen = len(s2)
-	}
-
-	// Calculate the percentage
-	percent := (float64(matchCount) / float64(maxLen)) * 100
-
-	// Format with two decimal places
-	return fmt.Sprintf("%.2f%%", percent)
-}
-
 func (c *Course) AssignQuizAnswersFromContent(ctx context.Context, recipientPrivateKey []byte) error {
-	metadata, err := ipfs.FetchQuizAndCompletion(ctx, c.Content.URI)
+	metadata, err := ipfs.FetchCourseMetadata(ctx, c.Content.URI)
 	if err != nil {
 		return err
 	}
@@ -204,7 +161,7 @@ func (c *Course) AssignQuizAnswersFromContent(ctx context.Context, recipientPriv
 func (c *Course) GetCurrentlyStudyingStudents(ctx context.Context, api edu.TonApi) ([]*Student, error) {
 	var students []*Student
 	for i := int64(0); ; i++ {
-		certificate := ton_edu.certificateFromInit(ctx, api, c.courseClient.GetCourseAddress(), i)
+		certificate := edu.CertificateFromInit(ctx, api, c.courseClient.GetCourseAddress(), i)
 		certificateData, err := certificate.GetCertificateData(ctx)
 		if err != nil {
 			// 7 is `type check error. An argument to a primitive is of incorrect value type`
