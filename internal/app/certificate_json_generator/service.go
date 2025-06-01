@@ -1,6 +1,7 @@
 package certificate_json_generator
 
-func isString(v interface{}) bool {
-	_, ok := v.(string)
-	return ok
+type CertificateJsonGeneratorService struct{}
+
+func NewCertificateJsonGeneratorService() *CertificateJsonGeneratorService {
+	return &CertificateJsonGeneratorService{}
 }

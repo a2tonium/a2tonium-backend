@@ -8,10 +8,12 @@ import (
 
 // GenerateCertificateJSON generates the JSON file from the Certificate data,
 // saves it in the specified directory, and returns the absolute path to the file.
-func GenerateCertificateJSON(cert Certificate) (string, error) {
-
+func (c *CertificateJsonGeneratorService) GenerateCertificateJSON(cert Certificate) (string, error) {
 	funcMap := template.FuncMap{
-		"isString": isString,
+		"isString": func(v interface{}) bool {
+			_, ok := v.(string)
+			return ok
+		},
 	}
 
 	tmpl, err := template.New("cert").Funcs(funcMap).Parse(jsonTemplate)
