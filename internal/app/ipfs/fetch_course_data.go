@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/a2tonium/a2tonium-backend/pkg/logger"
 	"io"
 	"net/http"
 	"strings"
@@ -27,24 +26,25 @@ type CourseMetadata struct {
 }
 
 // Fetches and decodes only the required fields from an IPFS JSON
-func FetchCourseMetadata(ctx context.Context, ipfsURI string) (*CourseMetadata, error) {
-	if !strings.HasPrefix(ipfsURI, "ipfs://") {
-		logger.ErrorKV(ctx, "ipfs.FetchQuiz failed:", logger.Err, "invalid IPFS URI")
+func (i *IpfsService) FetchCourseMetadata(ctx context.Context, ipfsURI string) (*CourseMetadata, error) {
+	ipfsURI = strings.TrimSpace(ipfsURI)
+	if !strings.HasPrefix(ipfsURI, IpfsURIPrefix) {
 		return nil, fmt.Errorf("invalid IPFS URI")
 	}
-	cid := strings.TrimPrefix(ipfsURI, "ipfs://")
+	cid := strings.TrimPrefix(ipfsURI, IpfsURIPrefix)
 
-	domain, err := takePinataGateway()
+	url := fmt.Sprintf(PinataGatewayFormat, i.gateway, cid)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
+	req.Header.Add(AuthorizationHeader, "Bearer "+i.jwt)
 
-	url := fmt.Sprintf("https://%s.mypinata.cloud/ipfs/%s", domain, cid)
-
-	req, _ := http.NewRequest("GET", url, nil)
-	req.Header.Add("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiI4OGM1NmU4YS03OGQwLTRkYTAtYTEwMy1kZjliMmYxNjU0YTUiLCJlbWFpbCI6ImVwaWNnYW1lc3R3b0BnbWFpbC5jb20iLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwicGluX3BvbGljeSI6eyJyZWdpb25zIjpbeyJkZXNpcmVkUmVwbGljYXRpb25Db3VudCI6MSwiaWQiOiJGUkExIn0seyJkZXNpcmVkUmVwbGljYXRpb25Db3VudCI6MSwiaWQiOiJOWUMxIn1dLCJ2ZXJzaW9uIjoxfSwibWZhX2VuYWJsZWQiOmZhbHNlLCJzdGF0dXMiOiJBQ1RJVkUifSwiYXV0aGVudGljYXRpb25UeXBlIjoic2NvcGVkS2V5Iiwic2NvcGVkS2V5S2V5IjoiZTEzNWUyOGIyZTA2N2RmZjQ5ODYiLCJzY29wZWRLZXlTZWNyZXQiOiI5MjZhNTc2MGUwNWEzZGFjZDZmY2FjMmZhNjk4ZTg2YzdkM2I5MTNkZGExYzdhNGNhYjYzYTIxYzk1NmE2MjE1IiwiZXhwIjoxNzc4OTYzNzgwfQ.gonxfkbUR6YqA-p93o7AKul8O9enyHf8m0h5qXq9Hsg")
-
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := i.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to perform request: %w", err)
+	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
@@ -62,10 +62,4 @@ func FetchCourseMetadata(ctx context.Context, ipfsURI string) (*CourseMetadata, 
 	}
 
 	return &metadata, nil
-}
-
-// PinataUploadResponse models the relevant part of Pinata's response JSON
-type PinataUploadResponse struct {
-	Cid string `json:"cid"` // CID of uploaded file
-	// other fields omitted
 }
