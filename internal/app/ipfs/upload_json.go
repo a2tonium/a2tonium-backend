@@ -2,6 +2,7 @@ package ipfs
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/a2tonium/a2tonium-backend/internal/infrastructure/filename"
@@ -18,7 +19,7 @@ type PinataUploadResponse struct {
 }
 
 // UploadJSONToPinata uploads the JSON string as a file to Pinata and returns the IPFS CID.
-func (i *IpfsService) UploadJSONToPinata(jsonData string) (string, error) {
+func (i *IpfsService) UploadJSONToPinata(ctx context.Context, jsonData string) (string, error) {
 	var requestBody bytes.Buffer
 	writer := multipart.NewWriter(&requestBody)
 
