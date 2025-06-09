@@ -188,8 +188,8 @@ func (c *CourseClient) GetCourseDataAtBlock(ctx context.Context, b *ton.BlockIDE
 	}, nil
 }
 
-func (c *CourseClient) BuildCertificateIssuePayload(certificateAddress *address.Address, certificateContent *ContentOffchain) (_ *cell.Cell, err error) {
-	con, err := toCertificateContent(certificateContent)
+func BuildCertificateIssuePayload(certificateAddress *address.Address, certificateContent *ContentOffchain) (_ *cell.Cell, err error) {
+	content, err := toCertificateContent(certificateContent)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert certificate content to cell: %w", err)
 	}
@@ -201,7 +201,7 @@ func (c *CourseClient) BuildCertificateIssuePayload(certificateAddress *address.
 
 	body, err := tlb.ToCell(CertificateIssuePayload{
 		CertificateAddress: certificateAddress,
-		CertificateContent: con,
+		CertificateContent: content,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert ItemMintPayload to cell: %w", err)
