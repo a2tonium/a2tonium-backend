@@ -12,37 +12,31 @@ import (
 	"github.com/xssnick/tonutils-go/tvm/cell"
 	"strconv"
 	"strings"
+	"time"
 )
 
-type Student struct {
+type student struct {
 	// QuizId - Last passed quiz id + 1
-	QuizId             int
-	Gmail, IIN         string
-	CertificateAddress *address.Address
+	QuizId                        int
+	Gmail, IIN                    string
+	CertificateAddress, ownerAddr *address.Address
 
 	lastProcessedLt   uint64
 	lastProcessedHash []byte
 }
 
-type Emit struct {
+type emit struct {
 	payload *cell.Cell
 	txLt    uint64
 	txHash  []byte
 }
 
-func (s *Student) GetAllGrades(ctx context.Context, api *ton.APIClient, courseOwner *address.Address, lastQuizId int) ([]string, error) {
+func (s *student) getAllGrades(ctx context.Context, api *ton.APIClient, courseOwner *address.Address) ([]string, error) {
 	var account *tlb.Account
-	for {
-		block, err := api.CurrentMasterchainInfo(ctx)
-		if err != nil {
-			continue
-		}
-
-		// Get account state to find last transaction LT and hash
-		account, err = api.GetAccount(ctx, block, s.CertificateAddress)
-		if err == nil {
-			break
-		}
+	lastQuizId := s.QuizId - 1
+	account, err := getAccountInstance(ctx, api, s.CertificateAddress)
+	if err != nil {
+		return nil, fmt.Errorf("s.getAllGrades.getAccountInstance failed: %w", err)
 	}
 
 	grades := make([]string, lastQuizId)
@@ -52,10 +46,13 @@ func (s *Student) GetAllGrades(ctx context.Context, api *ton.APIClient, courseOw
 	// Fetch transactions in batches (limit is total transactions to fetch)
 	batchSize := uint32(50)
 	for lastQuizId > 0 {
-		txs, err := api.ListTransactions(ctx, s.CertificateAddress, batchSize, lastLt, lastHash)
-		fmt.Println("listTransactions", txs)
-		if err != nil {
-			fmt.Println("CHHHEHC", err)
+		var txs []*tlb.Transaction
+		for i := 0; i < 3; i++ {
+			txs, err = api.ListTransactions(ctx, s.CertificateAddress, batchSize, lastLt, lastHash)
+			if err != nil {
+				time.Sleep(1 * time.Second)
+				continue
+			}
 			break
 		}
 
@@ -91,75 +88,67 @@ func (s *Student) GetAllGrades(ctx context.Context, api *ton.APIClient, courseOw
 		lastHash = lastTx.PrevTxHash
 	}
 
-	fmt.Println(grades, lastQuizId)
 	if lastQuizId == 0 {
 		return grades, nil
 	}
 	return grades, errors.New("not all grades was found")
 }
 
-// Collect all emitted external-out messages (emits) for a contract address
-func (s *Student) getNewEmits(ctx context.Context, api *ton.APIClient, courseOwner *address.Address) ([]*Emit, error) {
-	// Get current masterchain info for block reference
-	var account *tlb.Account
-	for {
-		block, err := api.CurrentMasterchainInfo(ctx)
-		if err != nil {
-			continue
-		}
+// Collect new emitted external-out messages (emits) for a contract address and return is the certificate issue call was from student
+func (s *student) getNewEmitsWithCertCallCheck(ctx context.Context, api *ton.APIClient, courseOwner *address.Address) ([]*emit, bool, error) {
+	var (
+		certificateIssue bool
+		err              error
+	)
 
-		// Get account state to find last transaction LT and hash
-		account, err = api.GetAccount(ctx, block, s.CertificateAddress)
-		if err == nil {
-			break
-		}
+	account, err := getAccountInstance(ctx, api, s.CertificateAddress)
+	if err != nil {
+		return nil, certificateIssue, fmt.Errorf("s.getAllGrades.getAccountInstance failed: %w", err)
 	}
 
-	var emits []*Emit
-	lastLt := account.LastTxLT
-	lastHash := account.LastTxHash
-	fmt.Printf("Account: %s", s.CertificateAddress)
-
-	lastProcessedHash := s.lastProcessedHash
-	lastProcessedLt := s.lastProcessedLt
+	var emits []*emit
+	lastLt, lastHash := account.LastTxLT, account.LastTxHash
+	lastProcessedLt, lastProcessedHash := s.lastProcessedLt, s.lastProcessedHash
 
 	if lastLt == lastProcessedLt && bytes.Compare(lastHash, lastProcessedHash) == 0 {
-		return emits, nil
+		return emits, certificateIssue, nil
 	}
 
 	// Fetch transactions in batches (limit is total transactions to fetch)
 	batchSize := uint32(50)
-	var stop bool
-	var foundLastGrade bool
+	var stop, foundLastGrade bool
 	var calls int
+
 	for ; !stop; calls++ {
-		txs, err := api.ListTransactions(ctx, s.CertificateAddress, batchSize, lastLt, lastHash)
-		if err != nil {
+		var txs []*tlb.Transaction
+		for i := 0; i < 3; i++ {
+			txs, err = api.ListTransactions(ctx, s.CertificateAddress, batchSize, lastLt, lastHash)
+			if err != nil {
+				time.Sleep(1 * time.Second)
+				continue
+			}
 			break
 		}
 
 		for i := len(txs) - 1; i >= 0; i-- {
 			tx := txs[i]
-			fmt.Println("NADO VSE", fmt.Sprintf("tx.LT: %v", tx.LT), fmt.Sprintf("lastProcessedLt: %v", lastProcessedLt),
-				fmt.Sprintf("tx.Hash: %x", tx.Hash), fmt.Sprintf("lastProcessedHash: %x", lastProcessedHash))
-			fmt.Println(tx.LT == lastProcessedLt && bytes.Compare(tx.Hash, lastProcessedHash) == 0)
 			if tx.LT == lastProcessedLt && bytes.Compare(tx.Hash, lastProcessedHash) == 0 {
 				if len(emits) == 0 {
-					s.lastProcessedLt = txs[len(txs)-1].LT
-					s.lastProcessedHash = txs[len(txs)-1].Hash
+					s.lastProcessedLt, s.lastProcessedHash = txs[len(txs)-1].LT, txs[len(txs)-1].Hash
 				}
 				stop = true
 				break
 			}
+
 			// Traverse outgoing messages linked list
 			if tx.IO.Out != nil {
 				currents, err := tx.IO.Out.ToSlice()
 				if err != nil {
-					return nil, err
+					return nil, certificateIssue, err
 				}
 				for _, cur := range currents {
 					if cur.Msg.DestAddr().IsAddrNone() {
-						emits = append(emits, &Emit{
+						emits = append(emits, &emit{
 							payload: cur.Msg.Payload(),
 							txLt:    tx.LT,
 							txHash:  tx.Hash,
@@ -167,6 +156,7 @@ func (s *Student) getNewEmits(ctx context.Context, api *ton.APIClient, courseOwn
 					}
 				}
 			}
+
 			if !foundLastGrade && tx.IO.In != nil {
 				if tx.IO.In.Msg.SenderAddr().String() == courseOwner.String() {
 					slice := tx.IO.In.Msg.Payload().BeginParse()
@@ -191,10 +181,15 @@ func (s *Student) getNewEmits(ctx context.Context, api *ton.APIClient, courseOwn
 					if err != nil {
 						continue
 					}
+
 					s.QuizId, lastProcessedLt, lastProcessedHash = quizId, lt, hash
 					foundLastGrade = true
-					fmt.Println("getNewEmits", quizId, lt, hash)
 				}
+			} else if tx.IO.In.Msg.SenderAddr().String() == s.ownerAddr.String() {
+				slice := tx.IO.In.Msg.Payload().BeginParse()
+				slice.LoadUInt(32)
+				payload := slice.MustLoadStringSnake()
+				certificateIssue = strings.HasPrefix(payload, "Rating: ")
 			}
 		}
 
@@ -209,5 +204,39 @@ func (s *Student) getNewEmits(ctx context.Context, api *ton.APIClient, courseOwn
 		s.lastProcessedHash = account.LastTxHash
 	}
 
-	return emits, nil
+	return emits, certificateIssue, nil
+}
+
+func getAccountInstance(ctx context.Context, api *ton.APIClient, certificateAddress *address.Address) (*tlb.Account, error) {
+	var (
+		account *tlb.Account
+		block   *ton.BlockIDExt
+		err     error
+	)
+	retryLimit := 3
+
+	// Get current masterchain info for block reference
+	for i := 0; i < retryLimit; i++ {
+		block, err = api.CurrentMasterchainInfo(ctx)
+		if err != nil {
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		break
+	}
+	if err != nil {
+		return nil, fmt.Errorf("getting current masterchain info failed: %w", err)
+	}
+	for i := 0; i < retryLimit; i++ {
+		// Get account state to find last transaction LT and hash
+		account, err = api.GetAccount(ctx, block, certificateAddress)
+		if err == nil {
+			break
+		}
+	}
+	if err != nil {
+		return nil, fmt.Errorf("getting current masterchain info failed: %w", err)
+	}
+
+	return account, nil
 }
