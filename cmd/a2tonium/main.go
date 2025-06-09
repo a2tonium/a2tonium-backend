@@ -5,16 +5,15 @@ import (
 	"encoding/base64"
 	"flag"
 	"fmt"
-	internalTon "github.com/a2tonium/a2tonium-backend/internal/app/ton"
+	"github.com/a2tonium/a2tonium-backend/internal/app/a2tonium"
+	"github.com/a2tonium/a2tonium-backend/internal/app/ipfs"
+	jsonGenerator "github.com/a2tonium/a2tonium-backend/internal/app/json_generator"
+	"github.com/a2tonium/a2tonium-backend/internal/app/ton"
 	"github.com/a2tonium/a2tonium-backend/pkg/config"
 	"github.com/a2tonium/a2tonium-backend/pkg/logger"
 	"github.com/a2tonium/a2tonium-backend/pkg/ton/crypto"
-	"github.com/xssnick/tonutils-go/liteclient"
-	"github.com/xssnick/tonutils-go/ton"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
-	"log"
-	"time"
 )
 
 func getLogLevel(lvl string) zapcore.Level {
@@ -49,16 +48,15 @@ func setupLogger() {
 func main() {
 	setupLogger()
 	var (
-		ctx, _   = context.WithCancel(context.Background())
-		mnemonic = "artwork vintage physical silk combine faith sketch crisp lion wrestle call credit shell chase donor glare sudden resource edge behave diamond sweet lens fall"
+		ctx, _            = context.WithCancel(context.Background())
+		generatePublicKey = flag.Bool("generatePublicKey", false, "Set this flag to generate public key")
+		configFlag        = flag.String("config", "test", "configuration file suffix")
 	)
-	generatePublicKey := flag.Bool("generatePublicKey", false, "Set this flag to generate public key")
-	configFlag := flag.String("config", "test", "configuration file suffix")
 	flag.Parse()
 	config.LoadConfig(*configFlag)
 
 	if *generatePublicKey {
-		keypair, err := crypto.MnemonicToX25519KeyPair(mnemonic)
+		keypair, err := crypto.MnemonicToX25519KeyPair(config.GetValue(mnemonicPhrase).String())
 		if err != nil {
 			fmt.Println("public key generation failed:", err)
 			return
@@ -68,33 +66,27 @@ func main() {
 		return
 	}
 
-	client := liteclient.NewConnectionPool()
-
-	configUrl := "https://ton-blockchain.github.io/testnet-global.config.json"
-	err := client.AddConnectionsFromConfigUrl(context.Background(), configUrl)
+	jsonGeneratorService := jsonGenerator.NewJsonGeneratorService()
+	ipfsService, err := ipfs.NewIpfsService(config.GetValue(pinataJwtToken).String())
 	if err != nil {
-		panic(err)
+		logger.ErrorKV(ctx, "ipfs.NewIpfsService error", logger.Err, err)
+		return
 	}
-	api := ton.NewAPIClient(client)
+	tonService := ton.NewTonService()
+	err = tonService.Init(ctx, config.GetValue(mnemonicPhrase).String())
+	if err != nil {
+		logger.ErrorKV(ctx, "tonService.Init error", logger.Err, err)
+		return
+	}
 
-	log.Println("Creating TonService ...")
-	tonService := internalTon.NewTonService(api, mnemonic)
-	for {
-		err = tonService.Init(ctx)
-		if err != nil {
-			panic(err)
-		}
-		//tonService.Show()
-		fmt.Println("Process Poshel :) ...")
+	a2toniumService := a2tonium.NewA2Tonium(tonService, ipfsService, jsonGeneratorService)
+	if err = a2toniumService.Init(ctx); err != nil {
+		logger.ErrorKV(ctx, logger.Err, err)
+		return
+	}
 
-		for i := 0; i < 60; i++ {
-			fmt.Println(i)
-			time.Sleep(5 * time.Second)
-			err = tonService.Run(ctx)
-			if err != nil {
-				panic(err)
-			}
-		}
-		fmt.Println("Reloading...")
+	if err = a2toniumService.Run(ctx); err != nil {
+		logger.ErrorKV(ctx, logger.Err, err)
+		return
 	}
 }
