@@ -8,7 +8,7 @@ configs:
   log_file_max_age: 1 # in days
 
   # [ipfs config]
-  jwt_token: "your_jwt_token"
+  pinata_jwt_token: "your_jwt_token"
 
   # [ton wallet]
   mnemonic_phrase: "your_mnemonic_phrase"
