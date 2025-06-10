@@ -66,11 +66,11 @@ func (i *IpfsService) UploadJSONToPinata(ctx context.Context, jsonData string) (
 	}
 
 	// Parse response JSON to get CID
-	var pinataResp PinataUploadResponse
+	var pinataResp Response
 	err = json.Unmarshal(respBody, &pinataResp)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse response JSON: %w", err)
 	}
 
-	return pinataResp.Cid, nil
+	return pinataResp.Data.Cid, nil
 }

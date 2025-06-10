@@ -15,6 +15,7 @@ type Response struct {
 type Data struct {
 	Count int   `json:"count"`
 	Rows  []Row `json:"rows"`
+	PinataUploadResponse
 }
 
 type Row struct {
