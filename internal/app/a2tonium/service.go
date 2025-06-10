@@ -17,6 +17,7 @@ type TonService interface {
 	SetCoursesMetadata(ctx context.Context, coursesMetadata []*ton.CourseMetadata) error
 	ProcessAllCourses(ctx context.Context) ([]*ton.CertificateIssue, error)
 	CertificateIssue(ctx context.Context, courseIndex, studentIndex int, cid string) error
+	UpdateStudents(ctx context.Context) error
 }
 
 type IpfsService interface {
@@ -80,37 +81,45 @@ func (a *A2Tonium) Init(ctx context.Context) error {
 
 func (a *A2Tonium) Run(ctx context.Context) error {
 	for {
-		time.Sleep(5 * time.Second)
-		certificatesIssueData, err := a.tonService.ProcessAllCourses(ctx)
-		if err != nil {
-			logger.ErrorKV(ctx, logger.Err, err)
-		}
-		if len(certificatesIssueData) == 0 {
-			continue
-		}
-
-		for _, certificateData := range certificatesIssueData {
-			certificateJson, err := a.jsonGeneratorService.GenerateCertificateJSON(ctx, &jsonGenerator.Certificate{
-				Name:  certificateData.CourseName,
-				IIN:   certificateData.StudentIIN,
-				Image: certificateData.ImageLink,
-				Attributes: []jsonGenerator.Attribute{
-					{TraitType: "Student IIN", Value: certificateData.StudentIIN},
-					{TraitType: "Average Grade", Value: certificateData.AverageGrade},
-					{TraitType: "Completion Data", Value: certificateData.CompletionDate},
-				},
-				QuizGrades: certificateData.QuizGrades,
-			})
+		for i := 0; i < 10; i++ {
+			time.Sleep(5 * time.Second)
+			certificatesIssueData, err := a.tonService.ProcessAllCourses(ctx)
 			if err != nil {
+				logger.ErrorKV(ctx, logger.Err, err)
+			}
+			if len(certificatesIssueData) == 0 {
 				continue
 			}
 
-			cid, err := a.ipfsService.UploadJSONToPinata(ctx, certificateJson)
-			if err != nil {
-				continue
-			}
+			for _, certificateData := range certificatesIssueData {
+				certificateJson, err := a.jsonGeneratorService.GenerateCertificateJSON(ctx, &jsonGenerator.Certificate{
+					Name:  certificateData.CourseName,
+					IIN:   certificateData.StudentIIN,
+					Image: certificateData.ImageLink,
+					Attributes: []jsonGenerator.Attribute{
+						{TraitType: "Student IIN", Value: certificateData.StudentIIN},
+						{TraitType: "Average Grade", Value: certificateData.AverageGrade},
+						{TraitType: "Completion Data", Value: certificateData.CompletionDate},
+					},
+					QuizGrades: certificateData.QuizGrades,
+				})
+				if err != nil {
+					continue
+				}
 
-			a.tonService.CertificateIssue(ctx, certificateData.CourseIndex, certificateData.StudentIndex, cid)
+				cid, err := a.ipfsService.UploadJSONToPinata(ctx, certificateJson)
+				if err != nil {
+					continue
+				}
+				a.tonService.CertificateIssue(ctx, certificateData.CourseIndex, certificateData.StudentIndex, cid)
+			}
+		}
+
+		for {
+			err := a.tonService.UpdateStudents(ctx)
+			if err == nil {
+				break
+			}
 		}
 	}
 }
