@@ -87,6 +87,19 @@ func (t *TonService) Reload(ctx context.Context) error {
 	return nil
 }
 
+func (t *TonService) UpdateStudents(ctx context.Context) error {
+	for _, course := range t.courses {
+		students, err := course.getStudents(ctx, t.api)
+		if err != nil {
+			return err
+		}
+
+		course.Students = students
+	}
+
+	return nil
+}
+
 // GetCoursesURIs - will return the content URIs for all courses
 func (t *TonService) GetCoursesURI() []string {
 	uris := make([]string, 0, len(t.courses))
@@ -135,6 +148,7 @@ func (t *TonService) ProcessAllCourses(ctx context.Context) ([]*CertificateIssue
 		fmt.Println("Processing course", i)
 		certificateIssueD, err := course.Process(ctx, t.api, t.wallet, t.keyPair.PrivateKey)
 		if err != nil {
+			logger.ErrorKV(ctx, "tonService.ProcessAllCourses course.Process failed", logger.Err, err)
 			return certificateIssueData, err
 		}
 
@@ -159,6 +173,7 @@ func (t *TonService) CertificateIssue(ctx context.Context, courseIndex, studentI
 			URI: fmt.Sprintf("ipfs://%s", cid),
 		})
 	if err != nil {
+		logger.ErrorKV(ctx, "tonService.CertificateIssue edu.BuildCertificateIssuePayload failed", logger.Err, err)
 		return fmt.Errorf("build certifcate issue payload failed: %w", err)
 	}
 
@@ -171,6 +186,7 @@ func (t *TonService) CertificateIssue(ctx context.Context, courseIndex, studentI
 		}
 	}
 	if err != nil {
+		logger.ErrorKV(ctx, "tonService.CertificateIssue t.wallet.SendWaitTransaction failed", logger.Err, err)
 		return fmt.Errorf("sendWaitTransaction failed: %w", err)
 	}
 
