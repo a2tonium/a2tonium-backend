@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/a2tonium/a2tonium-backend/pkg/logger"
 	"github.com/xssnick/tonutils-go/address"
 	"github.com/xssnick/tonutils-go/tlb"
 	"github.com/xssnick/tonutils-go/ton"
@@ -33,9 +34,10 @@ type emit struct {
 
 func (s *student) getAllGrades(ctx context.Context, api *ton.APIClient, courseOwner *address.Address) ([]string, error) {
 	var account *tlb.Account
-	lastQuizId := s.QuizId - 1
+	lastQuizId := s.QuizId
 	account, err := getAccountInstance(ctx, api, s.CertificateAddress)
 	if err != nil {
+		logger.ErrorKV(ctx, "student getAccountInstance() failed", logger.Err, err)
 		return nil, fmt.Errorf("s.getAllGrades.getAccountInstance failed: %w", err)
 	}
 
@@ -50,6 +52,7 @@ func (s *student) getAllGrades(ctx context.Context, api *ton.APIClient, courseOw
 		for i := 0; i < 3; i++ {
 			txs, err = api.ListTransactions(ctx, s.CertificateAddress, batchSize, lastLt, lastHash)
 			if err != nil {
+				logger.WarnKV(ctx, "student api.ListTransaction failed", logger.Err, err)
 				time.Sleep(1 * time.Second)
 				continue
 			}
@@ -91,6 +94,7 @@ func (s *student) getAllGrades(ctx context.Context, api *ton.APIClient, courseOw
 	if lastQuizId == 0 {
 		return grades, nil
 	}
+
 	return grades, errors.New("not all grades was found")
 }
 
@@ -103,6 +107,7 @@ func (s *student) getNewEmitsWithCertCallCheck(ctx context.Context, api *ton.API
 
 	account, err := getAccountInstance(ctx, api, s.CertificateAddress)
 	if err != nil {
+		logger.ErrorKV(ctx, "s.getAllGrades.getAccountInstance failed", logger.Err, err)
 		return nil, certificateIssue, fmt.Errorf("s.getAllGrades.getAccountInstance failed: %w", err)
 	}
 
@@ -124,9 +129,14 @@ func (s *student) getNewEmitsWithCertCallCheck(ctx context.Context, api *ton.API
 		for i := 0; i < 3; i++ {
 			txs, err = api.ListTransactions(ctx, s.CertificateAddress, batchSize, lastLt, lastHash)
 			if err != nil {
+				logger.WarnKV(ctx, "student api.ListTransaction failed", logger.Err, err)
 				time.Sleep(1 * time.Second)
 				continue
 			}
+			break
+		}
+
+		if len(txs) == 0 {
 			break
 		}
 
@@ -156,11 +166,13 @@ func (s *student) getNewEmitsWithCertCallCheck(ctx context.Context, api *ton.API
 					}
 				}
 			}
-
-			if !foundLastGrade && tx.IO.In != nil {
-				if tx.IO.In.Msg.SenderAddr().String() == courseOwner.String() {
-					slice := tx.IO.In.Msg.Payload().BeginParse()
-					slice.LoadUInt(32)
+			if !foundLastGrade && tx.IO.In != nil && tx.IO.In.Msg.SenderAddr().String() == courseOwner.String() {
+				slice := tx.IO.In.Msg.Payload().BeginParse()
+				q, err := slice.LoadUInt(32)
+				if err != nil {
+					continue
+				}
+				if q == 0 {
 					payload := slice.MustLoadStringSnake()
 					payloadSlice := strings.Split(payload, " | ")
 					if len(payloadSlice) != 4 {
@@ -185,11 +197,16 @@ func (s *student) getNewEmitsWithCertCallCheck(ctx context.Context, api *ton.API
 					s.QuizId, lastProcessedLt, lastProcessedHash = quizId, lt, hash
 					foundLastGrade = true
 				}
-			} else if tx.IO.In.Msg.SenderAddr().String() == s.ownerAddr.String() {
+			} else if tx.IO.In != nil && tx.IO.In.Msg.SenderAddr().String() == s.ownerAddr.String() {
 				slice := tx.IO.In.Msg.Payload().BeginParse()
-				slice.LoadUInt(32)
-				payload := slice.MustLoadStringSnake()
-				certificateIssue = strings.HasPrefix(payload, "Rating: ")
+				q, err := slice.LoadUInt(32)
+				if err != nil {
+					continue
+				}
+				if q == 0 {
+					payload := slice.MustLoadStringSnake()
+					certificateIssue = strings.HasPrefix(payload, "Rating:")
+				}
 			}
 		}
 
@@ -225,6 +242,7 @@ func getAccountInstance(ctx context.Context, api *ton.APIClient, certificateAddr
 		break
 	}
 	if err != nil {
+		logger.ErrorKV(ctx, "getting current masterchain info failed", logger.Err, err)
 		return nil, fmt.Errorf("getting current masterchain info failed: %w", err)
 	}
 	for i := 0; i < retryLimit; i++ {
@@ -235,7 +253,8 @@ func getAccountInstance(ctx context.Context, api *ton.APIClient, certificateAddr
 		}
 	}
 	if err != nil {
-		return nil, fmt.Errorf("getting current masterchain info failed: %w", err)
+		logger.ErrorKV(ctx, "api.GetAccount failed", logger.Err, err)
+		return nil, fmt.Errorf("api.GetAccount failed: %w", err)
 	}
 
 	return account, nil
