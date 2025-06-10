@@ -92,6 +92,7 @@ func (a *A2Tonium) Run(ctx context.Context) error {
 			}
 
 			for _, certificateData := range certificatesIssueData {
+				logger.Info(ctx, "Generating certificate...")
 				certificateJson, err := a.jsonGeneratorService.GenerateCertificateJSON(ctx, &jsonGenerator.Certificate{
 					Name:  certificateData.CourseName,
 					IIN:   certificateData.StudentIIN,
@@ -107,10 +108,13 @@ func (a *A2Tonium) Run(ctx context.Context) error {
 					continue
 				}
 
+				logger.Info(ctx, "Uploading certificate...")
 				cid, err := a.ipfsService.UploadJSONToPinata(ctx, certificateJson)
 				if err != nil {
 					continue
 				}
+
+				logger.Info(ctx, "Certificate issuing...")
 				a.tonService.CertificateIssue(ctx, certificateData.CourseIndex, certificateData.StudentIndex, cid)
 			}
 		}

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"github.com/a2tonium/a2tonium-backend/pkg/logger"
 	"github.com/a2tonium/a2tonium-backend/pkg/ton/crypto"
 	"github.com/a2tonium/a2tonium-backend/pkg/ton/edu"
 	"github.com/xssnick/tonutils-go/address"
@@ -69,6 +70,8 @@ func (c *course) Process(ctx context.Context, api *ton.APIClient, w *wallet.Wall
 
 			//tx, block, err := w.SendWaitTransaction(ctx, transfer)
 			_, _, err = w.SendWaitTransaction(ctx, transfer)
+			logger.InfoKV(ctx, "quiz graded", "student address", s.CertificateAddress, "quizId", quizId+1,
+				"grade", grade)
 			if err != nil {
 				break
 			}
@@ -93,6 +96,7 @@ func (c *course) Process(ctx context.Context, api *ton.APIClient, w *wallet.Wall
 				StudentIndex:   studentIndex,
 				CompletionDate: time.Now().Format("2006-01-02"),
 			})
+			logger.InfoKV(ctx, "Certificate issue data prepared", "student address", s.CertificateAddress)
 		}
 	}
 

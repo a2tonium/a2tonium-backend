@@ -190,6 +190,6 @@ func (t *TonService) CertificateIssue(ctx context.Context, courseIndex, studentI
 	}
 
 	course.Students = append(course.Students[:studentIndex], course.Students[studentIndex+1:]...)
-
+	logger.Info(ctx, "Certificate successfully issue")
 	return nil
 }
