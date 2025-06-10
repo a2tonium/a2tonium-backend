@@ -3,128 +3,193 @@ package ton
 import (
 	"context"
 	"fmt"
-	internalEdu "github.com/a2tonium/a2tonium-backend/internal/app/ton/edu"
+	"github.com/a2tonium/a2tonium-backend/pkg/logger"
 	"github.com/a2tonium/a2tonium-backend/pkg/ton/crypto"
+	"github.com/a2tonium/a2tonium-backend/pkg/ton/edu"
+	"github.com/xssnick/tonutils-go/liteclient"
+	"github.com/xssnick/tonutils-go/tlb"
 	"github.com/xssnick/tonutils-go/ton"
 	"github.com/xssnick/tonutils-go/ton/wallet"
-	"log"
 	"strings"
 )
 
 type TonService struct {
 	api     *ton.APIClient
 	keyPair crypto.KeyPair
-	Courses []*internalEdu.Course
+	courses []*course
 	wallet  *wallet.Wallet
 }
 
-func NewTonService(api *ton.APIClient, mnemonic string) *TonService {
-	log.Println("Creating Wallet ...")
+func NewTonService() *TonService {
+	return &TonService{}
+}
+
+// Init - will retrieve all created courses along with their enrolled students and assign them accordingly
+func (t *TonService) Init(ctx context.Context, mnemonic string) error {
+	client := liteclient.NewConnectionPool()
+
+	configUrl := "https://ton-blockchain.github.io/testnet-global.config.json"
+	err := client.AddConnectionsFromConfigUrl(context.Background(), configUrl)
+	if err != nil {
+		panic(err)
+	}
+	t.api = ton.NewAPIClient(client)
+
 	seed := strings.Split(mnemonic, " ")
-	w, err := wallet.FromSeed(api, seed, wallet.ConfigV5R1Final{
+	w, err := wallet.FromSeed(t.api, seed, wallet.ConfigV5R1Final{
 		NetworkGlobalID: wallet.TestnetGlobalID,
 	})
-	log.Println(w.WalletAddress())
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("error creating wallet: %v", err)
 	}
-	log.Println("X25519 Key Pair ...")
+
 	keyPair, err := crypto.MnemonicToX25519KeyPair(mnemonic)
 	if err != nil {
-		panic(err)
+		return fmt.Errorf("error generating X25519 key pair: %v", err)
 	}
 
-	return &TonService{
-		api:     api,
-		keyPair: keyPair,
-		wallet:  w,
-	}
-}
+	t.api, t.keyPair, t.wallet = t.api, keyPair, w
 
-func (t *TonService) Run(ctx context.Context) error {
-	for i, course := range t.Courses {
-		fmt.Println("Processing Course", i)
-		err := course.Process(ctx, t.api, t.wallet, t.keyPair.PrivateKey)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (t *TonService) Init(ctx context.Context) error {
-	var courses []*internalEdu.Course
-	courses, err := internalEdu.GetAllCreatedCourses(ctx, t.api, t.wallet.WalletAddress())
-	fmt.Println(t.wallet.WalletAddress(), courses)
+	courses, err := t.getAllCreatedCourses(ctx)
 	if err != nil {
 		return err
 	}
-	t.Courses = courses
-	log.Println("Initializing TonService ...")
+	t.courses = courses
+
 	for _, course := range courses {
-
-		err := course.AssignQuizAnswersFromContent(ctx, t.keyPair.PrivateKey)
+		students, err := course.getStudents(ctx, t.api)
 		if err != nil {
 			return err
 		}
 
-		students, err := course.GetCurrentlyStudyingStudents(ctx, t.api)
-		if err != nil {
-			return err
-		}
-		course.StudyingStudents = students
-		log.Println(course.StudentNum, course.Content, course)
-
+		course.Students = students
 	}
 
 	return nil
 }
 
-func (t *TonService) Show() {
-	fmt.Println("API:", t.api)
-	fmt.Println("X255219 Private Key:", string(t.keyPair.PrivateKey))
-	fmt.Println("X255219 Public Key:", string(t.keyPair.PublicKey))
-	fmt.Println("Wallet Address:", t.wallet.WalletAddress())
-	for _, course := range t.Courses {
-		fmt.Println()
-		fmt.Println("Courses:")
-		fmt.Println("\tStudentNum:", course.StudentNum)
-		fmt.Println("\tQuiz Correct Answers:", course.QuizCorrectAnswers)
-		fmt.Println("\tContent:", course.Content)
-		fmt.Println()
-		fmt.Println("\tStudents:")
-		for _, student := range course.StudyingStudents {
-			fmt.Println("\t\tStudent Wallet Address:", student.CertificateAddress)
-			fmt.Println("\t\tQuiz Id:", student.QuizId)
-			fmt.Println("\t\tGmail:", student.Gmail)
-			fmt.Println("\t\tIIN:", student.IIN)
-		}
+func (t *TonService) Reload(ctx context.Context) error {
+	courses, err := t.getAllCreatedCourses(ctx)
+	if err != nil {
+		return err
 	}
+	t.courses = courses
+
+	for _, course := range courses {
+		students, err := course.getStudents(ctx, t.api)
+		if err != nil {
+			return err
+		}
+
+		course.Students = students
+	}
+
+	return nil
 }
 
-//
-//func NewTonService(keyPair crypto.KeyPair) *TonService {
-//	return &TonService{keyPair: keyPair}
-//}
-//
-//func (t *TonService) GetCourse(ctx context.Context, courseId uint16) (*Course, error)   {}
-//func (t *TonService) GetTxnTillLT(ctx context.Context, address address.Address, lt int) {}
-//func (t *TonService) GetGradeOrAllEmits(ctx context.Context, address address.Address)   {}
-//func (t *TonService) GetAllGrades(ctx context.Context, address address.Address)         {}
-//func (t *TonService) GetAllGradesByCourse(ctx context.Context, address address.Address) {}
-//func (t *TonService) GetCertificateByCourse(ctx context.Context, address address.Address, course *Course) {
-//}
-//
-//type TonServiceI interface {
-//	// GetCourse
-//	GetCourse(ctx context.Context, courseId uint16) (*Course, error)
-//}
-//
-//func getWallet(api ton.APIClientWrapped) *wallet.Wallet {
-//	words := strings.Split("birth pattern then forest walnut then phrase walnut fan pumpkin pattern then cluster blossom verify then forest velvet pond fiction pattern collect then then", " ")
-//	w, err := wallet.FromSeed(api, words, wallet.V4R2)
-//	if err != nil {
-//		panic(err)
-//	}
-//	return w
-//}
+func (t *TonService) UpdateStudents(ctx context.Context) error {
+	for _, course := range t.courses {
+		students, err := course.getStudents(ctx, t.api)
+		if err != nil {
+			return err
+		}
+
+		course.Students = students
+	}
+
+	return nil
+}
+
+// GetCoursesURIs - will return the content URIs for all courses
+func (t *TonService) GetCoursesURI() []string {
+	uris := make([]string, 0, len(t.courses))
+	for _, c := range t.courses {
+		uris = append(uris, c.Content.URI)
+	}
+
+	return uris
+}
+
+func (t *TonService) GetAllStudentsGmail() []string {
+	uris := make([]string, 0, len(t.courses))
+	for _, c := range t.courses {
+		for _, s := range c.Students {
+			uris = append(uris, s.Gmail)
+		}
+	}
+
+	return uris
+}
+
+// SetCoursesMetadata updates the metadata for all courses managed by the TonService.
+// It expects a slice of CourseMetadata with the same length as the number of courses.
+// Returns an error if the lengths don't match or if updating metadata for any course fails.
+func (t *TonService) SetCoursesMetadata(ctx context.Context, coursesMetadata []*CourseMetadata) error {
+	if len(coursesMetadata) != len(t.courses) {
+		return fmt.Errorf("number of courses does not match the number of coursesMetadata")
+	}
+
+	for i, course := range t.courses {
+		err := course.setMetadata(coursesMetadata[i], t.keyPair.PrivateKey)
+		if err != nil {
+			logger.ErrorKV(ctx, "courses metadata error", "courseAddress", course.CourseAddress,
+				logger.Err, err)
+			return fmt.Errorf("set metadata failed: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// TODO: function which will operate all courses and will return the certificateIssue
+func (t *TonService) ProcessAllCourses(ctx context.Context) ([]*CertificateIssue, error) {
+	certificateIssueData := make([]*CertificateIssue, 0)
+	for i, course := range t.courses {
+		certificateIssueD, err := course.Process(ctx, t.api, t.wallet, t.keyPair.PrivateKey)
+		if err != nil {
+			logger.ErrorKV(ctx, "tonService.ProcessAllCourses course.Process failed", logger.Err, err)
+			return certificateIssueData, err
+		}
+
+		for _, certificateIssue := range certificateIssueD {
+			certificateIssue.CourseIndex = i
+			certificateIssue.ImageLink = course.courseCompletion[0].Certificate
+			certificateIssueData = append(certificateIssueData, certificateIssue)
+		}
+	}
+
+	return certificateIssueData, nil
+}
+
+func (t *TonService) CertificateIssue(ctx context.Context, courseIndex, studentIndex int, cid string) error {
+	var (
+		course  = t.courses[courseIndex]
+		student = course.Students[studentIndex]
+	)
+
+	mintData, err := edu.BuildCertificateIssuePayload(student.CertificateAddress,
+		&edu.ContentOffchain{
+			URI: fmt.Sprintf("ipfs://%s", cid),
+		})
+	if err != nil {
+		logger.ErrorKV(ctx, "tonService.CertificateIssue edu.BuildCertificateIssuePayload failed", logger.Err, err)
+		return fmt.Errorf("build certifcate issue payload failed: %w", err)
+	}
+
+	mint := wallet.SimpleMessage(course.CourseAddress, tlb.MustFromTON("0.02"), mintData)
+
+	for i := 0; i < 3; i++ {
+		_, _, err = t.wallet.SendWaitTransaction(ctx, mint)
+		if err == nil {
+			break
+		}
+	}
+	if err != nil {
+		logger.ErrorKV(ctx, "tonService.CertificateIssue t.wallet.SendWaitTransaction failed", logger.Err, err)
+		return fmt.Errorf("sendWaitTransaction failed: %w", err)
+	}
+
+	course.Students = append(course.Students[:studentIndex], course.Students[studentIndex+1:]...)
+	logger.Info(ctx, "Certificate successfully issue")
+	return nil
+}

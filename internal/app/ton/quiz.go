@@ -1,4 +1,4 @@
-package edu
+package ton
 
 import (
 	"fmt"

@@ -8,4 +8,8 @@ const (
 	logFileBackups = "log_file_backups"
 	logFileMaxSize = "log_file_max_size"
 	logFileMaxAge  = "log_file_max_age"
+
+	mnemonicPhrase = "mnemonic_phrase"
+
+	pinataJwtToken = "pinata_jwt_token"
 )

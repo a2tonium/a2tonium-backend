@@ -1,69 +1,129 @@
 package a2tonium
 
 import (
+	"context"
+	"fmt"
+	"github.com/a2tonium/a2tonium-backend/internal/app/ipfs"
+	jsonGenerator "github.com/a2tonium/a2tonium-backend/internal/app/json_generator"
 	"github.com/a2tonium/a2tonium-backend/internal/app/ton"
-	"github.com/xssnick/tonutils-go/address"
-	"github.com/xssnick/tonutils-go/tlb"
+	"github.com/a2tonium/a2tonium-backend/pkg/logger"
+	"time"
 )
 
-type YoutubeService interface {
-	GiveAccessToGmail(gmails, videosId []string) error
+type TonService interface {
+	Reload(ctx context.Context) error
+	GetCoursesURI() []string
+	GetAllStudentsGmail() []string
+	SetCoursesMetadata(ctx context.Context, coursesMetadata []*ton.CourseMetadata) error
+	ProcessAllCourses(ctx context.Context) ([]*ton.CertificateIssue, error)
+	CertificateIssue(ctx context.Context, courseIndex, studentIndex int, cid string) error
+	UpdateStudents(ctx context.Context) error
 }
 
-type TonService interface {
-	GetAllCoursesByAddress(address *address.Address) ([]*edu.Course, error)
-	GetAllStudentsByCourseAddress(courseAddress *address.Address) ([]*edu.Course, error)
-	GetEmitsTillTx(certificateAddress *address.Address) ([]*tlb.Transaction, lastTxLT int, error)
+type IpfsService interface {
+	UploadJSONToPinata(ctx context.Context, jsonData string) (string, error)
+	FetchCourseMetadata(ctx context.Context, ipfsURI string) (*ipfs.CourseMetadata, error)
+}
+
+type JsonGeneratorService interface {
+	GenerateCertificateJSON(ctx context.Context, cert *jsonGenerator.Certificate) (string, error)
 }
 
 type A2Tonium struct {
-	YoutubeService
-	TonService
+	tonService           TonService
+	ipfsService          IpfsService
+	jsonGeneratorService JsonGeneratorService
 }
 
-func (a *A2Tonium) Run() {
-	// TODO: (1) Get Educator Address from Seed
-
-	// TODO: (2) Get All Courses Which He Created
-	// Course should contain the `StudentNum` and `CorrectAnswers`
-
-	// TODO: (3) Get All `Enrolled`  Students By Course Address
-	// Actually we will traverse all students
-
-	// TODO: (4) Init state for each `Enrolled Student`
-	// Create the Student struct
-	// if nobody yet answerQuiz and no grade      {quizId = 0, LT = lastTx}
-	// if we grade already                        {quizId = <gradedQuizId> + 1, LT = <ourGradeCommentTx>}
-	// if we don't grade but the answerQuiz exist {quizId = 0, LT = <firstEmitTx>}
-
-	// TODO: (5) Loop range `Enrolled Students`
-	// Just call ProcessStudent()
-	// If lastTx changed goTillLastTxn and from it parse is any emit exist and after update lastProcessedTxn
-
-	var studentsGmail []string
-	for _, c := range courses {
-		for i := range c.StudentNum {
-			student, isComplete, err :=	a.TonService.InitStudent()
-			if !isComplete {
-				studentsGmail := append(studentsGmail, student.GetGmail())
-			}
-			a.YoutubeService.GiveAccessToGmail(studentsGmail, c.GetVideosz)
-			}
+func NewA2Tonium(tonService TonService, ipfsService IpfsService, jsonGeneratorService JsonGeneratorService) *A2Tonium {
+	return &A2Tonium{
+		tonService,
+		ipfsService,
+		jsonGeneratorService,
+	}
 }
 
-	for _, c := range courses {
-		check is number of students in course changed
-		a.TonService.UpdateCourse
+func (a *A2Tonium) Init(ctx context.Context) error {
+	var coursesMetadata []*ton.CourseMetadata
+	coursesUri := a.tonService.GetCoursesURI()
+	for _, courseUri := range coursesUri {
+		metadata, err := a.ipfsService.FetchCourseMetadata(ctx, courseUri)
+		if err != nil {
+			logger.ErrorKV(ctx, logger.Err, err)
+			return fmt.Errorf("ipfsService.FetchCourseMetadta for %s course failed: %w", err)
+		}
 
-		for _, s := students {
-			a.TonService.ProcessStudent() {
+		var courseCompletion []ton.CourseCompletion
+		for _, metaCourseComp := range metadata.CourseCompletion {
+			courseCompletion = append(courseCompletion, ton.CourseCompletion{
+				GradeHighThan: metaCourseComp.GradeHighThan,
+				Certificate:   metaCourseComp.Certificate,
+			})
+		}
 
+		coursesMetadata = append(coursesMetadata, &ton.CourseMetadata{
+			Name: metadata.Name,
+			QuizAnswers: ton.QuizAnswers{
+				EncryptedAnswers: metadata.QuizAnswers.EncryptedAnswers,
+				SenderPublicKey:  metadata.QuizAnswers.SenderPublicKey,
+			},
+			CourseCompletion: courseCompletion,
+		})
+	}
+
+	if err := a.tonService.SetCoursesMetadata(ctx, coursesMetadata); err != nil {
+		logger.ErrorKV(ctx, logger.Err, err)
+		return fmt.Errorf("tonService.SetCoursesMetadata failed: %w", err)
+	}
+
+	return nil
+}
+
+func (a *A2Tonium) Run(ctx context.Context) error {
+	for {
+		for i := 0; i < 10; i++ {
+			time.Sleep(5 * time.Second)
+			certificatesIssueData, err := a.tonService.ProcessAllCourses(ctx)
+			if err != nil {
+				logger.ErrorKV(ctx, logger.Err, err)
+			}
+			if len(certificatesIssueData) == 0 {
+				continue
+			}
+
+			for _, certificateData := range certificatesIssueData {
+				logger.Info(ctx, "Generating certificate...")
+				certificateJson, err := a.jsonGeneratorService.GenerateCertificateJSON(ctx, &jsonGenerator.Certificate{
+					Name:  certificateData.CourseName,
+					IIN:   certificateData.StudentIIN,
+					Image: certificateData.ImageLink,
+					Attributes: []jsonGenerator.Attribute{
+						{TraitType: "Student IIN", Value: certificateData.StudentIIN},
+						{TraitType: "Average Grade", Value: certificateData.AverageGrade},
+						{TraitType: "Completion Data", Value: certificateData.CompletionDate},
+					},
+					QuizGrades: certificateData.QuizGrades,
+				})
+				if err != nil {
+					continue
+				}
+
+				logger.Info(ctx, "Uploading certificate...")
+				cid, err := a.ipfsService.UploadJSONToPinata(ctx, certificateJson)
+				if err != nil {
+					continue
+				}
+
+				logger.Info(ctx, "Certificate issuing...")
+				a.tonService.CertificateIssue(ctx, certificateData.CourseIndex, certificateData.StudentIndex, cid)
+			}
+		}
+
+		for {
+			err := a.tonService.UpdateStudents(ctx)
+			if err == nil {
+				break
 			}
 		}
 	}
-
-
-	// TODO: (6)
-	// TODO: (7)
-
 }
