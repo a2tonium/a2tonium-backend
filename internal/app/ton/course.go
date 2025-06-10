@@ -76,7 +76,7 @@ func (c *course) Process(ctx context.Context, api *ton.APIClient, w *wallet.Wall
 			s.lastProcessedHash, s.lastProcessedLt = newEmit.txHash, newEmit.txLt
 		}
 
-		if certificateIssueCall && s.QuizId-1 == len(c.QuizCorrectAnswers) {
+		if certificateIssueCall && s.QuizId == len(c.QuizCorrectAnswers) {
 			allGrades, err := s.getAllGrades(ctx, api, c.OwnerAddress)
 			if err != nil {
 				continue
@@ -85,7 +85,6 @@ func (c *course) Process(ctx context.Context, api *ton.APIClient, w *wallet.Wall
 			if err != nil {
 				continue
 			}
-
 			certificateIssueData = append(certificateIssueData, &CertificateIssue{
 				CourseName:     c.Name,
 				StudentIIN:     s.IIN,
@@ -169,8 +168,9 @@ func (t *TonService) getAllCreatedCourses(ctx context.Context) ([]*course, error
 		}
 
 		course := &course{
-			OwnerAddress: courseData.OwnerAddress,
-			Content:      courseData.Content,
+			CourseAddress: courseClient.GetCourseAddress(),
+			OwnerAddress:  courseData.OwnerAddress,
+			Content:       courseData.Content,
 		}
 
 		createdCourses = append(createdCourses, course)
