@@ -46,7 +46,6 @@ func setupLogger() {
 }
 
 func main() {
-	setupLogger()
 	var (
 		ctx, _            = context.WithCancel(context.Background())
 		generatePublicKey = flag.Bool("generatePublicKey", false, "Set this flag to generate public key")
@@ -54,6 +53,7 @@ func main() {
 	)
 	flag.Parse()
 	config.LoadConfig(*configFlag)
+	setupLogger()
 
 	if *generatePublicKey {
 		keypair, err := crypto.MnemonicToX25519KeyPair(config.GetValue(mnemonicPhrase).String())
@@ -67,24 +67,31 @@ func main() {
 	}
 
 	jsonGeneratorService := jsonGenerator.NewJsonGeneratorService()
+	logger.Info(ctx, logger.Msg, "jsonGeneratorService created")
+
 	ipfsService, err := ipfs.NewIpfsService(config.GetValue(pinataJwtToken).String())
 	if err != nil {
 		logger.ErrorKV(ctx, "ipfs.NewIpfsService error", logger.Err, err)
 		return
 	}
+	logger.Info(ctx, logger.Msg, "ipfsService created")
+
 	tonService := ton.NewTonService()
 	err = tonService.Init(ctx, config.GetValue(mnemonicPhrase).String())
 	if err != nil {
 		logger.ErrorKV(ctx, "tonService.Init error", logger.Err, err)
 		return
 	}
+	logger.Info(ctx, logger.Msg, "tonService created and inited")
 
 	a2toniumService := a2tonium.NewA2Tonium(tonService, ipfsService, jsonGeneratorService)
 	if err = a2toniumService.Init(ctx); err != nil {
 		logger.ErrorKV(ctx, logger.Err, err)
 		return
 	}
+	logger.Info(ctx, logger.Msg, "a2toniumService created and inited")
 
+	logger.Info(ctx, logger.Msg, "Running A2Tonium ...")
 	if err = a2toniumService.Run(ctx); err != nil {
 		logger.ErrorKV(ctx, logger.Err, err)
 		return
