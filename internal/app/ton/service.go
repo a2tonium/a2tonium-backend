@@ -145,7 +145,6 @@ func (t *TonService) SetCoursesMetadata(ctx context.Context, coursesMetadata []*
 func (t *TonService) ProcessAllCourses(ctx context.Context) ([]*CertificateIssue, error) {
 	certificateIssueData := make([]*CertificateIssue, 0)
 	for i, course := range t.courses {
-		fmt.Println("Processing course", i)
 		certificateIssueD, err := course.Process(ctx, t.api, t.wallet, t.keyPair.PrivateKey)
 		if err != nil {
 			logger.ErrorKV(ctx, "tonService.ProcessAllCourses course.Process failed", logger.Err, err)
